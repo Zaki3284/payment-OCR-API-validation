@@ -115,6 +115,20 @@ class PaymentContractTests(unittest.TestCase):
     def test_amount_rejects_infinity(self):
         self.assert_error(minimal(expected_amount=float("inf")), "expected_amount", "invalid_format")
 
+    def test_amount_extreme_integer_returns_contract_error(self):
+        self.assert_error(
+            minimal(expected_amount="9" * 1000),
+            "expected_amount",
+            "invalid_format",
+        )
+
+    def test_amount_extreme_exponent_returns_contract_error(self):
+        self.assert_error(
+            minimal(expected_amount="1e999999"),
+            "expected_amount",
+            "invalid_format",
+        )
+
     def test_default_currency(self):
         self.assertEqual(self.parse().expected_currency, "MRU")
 

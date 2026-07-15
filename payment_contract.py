@@ -57,7 +57,10 @@ def _parse_amount(value: object) -> Decimal:
         _error(field, "invalid_format", f"invalid {field} format")
     if amount <= 0:
         _error(field, "must_be_positive", f"{field} must be greater than zero")
-    return amount.quantize(Decimal("0.01"))
+    try:
+        return amount.quantize(Decimal("0.01"))
+    except InvalidOperation:
+        _error(field, "invalid_format", f"invalid {field} format")
 
 
 def _parse_phone(value: object) -> str | None:
