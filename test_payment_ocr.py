@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timezone
 
-from payment_ocr import validate_payment
+from payment_ocr import PAYMENT_OCR_PROMPT, validate_payment
 
 
 NOW = datetime(2026, 7, 14, 22, 0, tzinfo=timezone.utc)
@@ -116,6 +116,61 @@ class PaymentValidationTests(unittest.TestCase):
         out = self.validate(raw)
         self.assertIn("payment_too_old", issue_codes(out))
 
+    def test_ocr_prompt_requests_recipient(self):
+        self.assertIn('"recipient":null', "".join(PAYMENT_OCR_PROMPT.split()))
+
+    def test_ocr_prompt_requests_status_text(self):
+        self.assertIn('"status_text":null', "".join(PAYMENT_OCR_PROMPT.split()))
+
+    def test_ocr_prompt_requests_recipient_confidence(self):
+        self.assertIn('"recipient":0', "".join(PAYMENT_OCR_PROMPT.split()))
+
+    def test_ocr_prompt_requests_status_confidence(self):
+        self.assertIn('"status":0', "".join(PAYMENT_OCR_PROMPT.split()))
+
+    def test_ocr_prompt_forbids_status_inference(self):
+        prompt = PAYMENT_OCR_PROMPT.casefold()
+        self.assertIn("does not prove", prompt)
+        self.assertIn("do not translate, normalize, or infer success", prompt)
+        self.assertIn("visibly printed", prompt)
+
+    def test_ocr_prompt_forbids_recipient_inference(self):
+        prompt = PAYMENT_OCR_PROMPT.casefold()
+        self.assertIn("never infer it", prompt)
+        self.assertIn("visibly printed beneficiary", prompt)
+
+    def test_recipient_is_not_a_required_legacy_field(self):
+        out = self.validate(valid_raw())
+        self.assertNotIn("recipient", out["data"])
+        self.assertNotIn("recipient", [issue["field"] for issue in out["issues"]])
+
+    def test_status_is_not_a_required_legacy_field(self):
+        out = self.validate(valid_raw())
+        self.assertNotIn("status", out["data"])
+        self.assertNotIn("status", [issue["field"] for issue in out["issues"]])
+
+    def test_extra_recipient_does_not_change_legacy_screening(self):
+        baseline = self.validate(valid_raw())
+        enriched = self.validate(valid_raw(recipient="ACPEC"))
+        self.assertEqual(enriched, baseline)
+
+    def test_extra_status_does_not_change_legacy_screening(self):
+        baseline = self.validate(valid_raw())
+        enriched = self.validate(valid_raw(status_text="Paiement réussi"))
+        self.assertEqual(enriched, baseline)
+
+    def test_extra_status_confidence_does_not_change_legacy_screening(self):
+        baseline_raw = valid_raw()
+        confidence = {**baseline_raw["confidence"], "status": 0.99}
+        enriched = self.validate(valid_raw(status_text="Paiement réussi", confidence=confidence))
+        self.assertEqual(enriched, self.validate(baseline_raw))
+
+    def test_extra_fields_do_not_change_fingerprint(self):
+        baseline = self.validate(valid_raw())
+        raw = valid_raw(recipient="ACPEC", status_text="successful")
+        raw["confidence"] = {**raw["confidence"], "recipient": 0.98, "status": 0.99}
+        enriched = self.validate(raw)
+        self.assertEqual(enriched["fingerprint"], baseline["fingerprint"])
 
 if __name__ == "__main__":
     unittest.main()

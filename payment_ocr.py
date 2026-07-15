@@ -13,6 +13,30 @@ from typing import Any
 PROVIDERS = {"bankily": "Bankily", "masrivi": "Masrivi", "sedad": "Sedad", "click": "Click"}
 REQUIRED_FIELDS = ("provider", "reference", "amount", "paid_at", "phone")
 
+PAYMENT_OCR_PROMPT = """Read this Mauritanian payment receipt/screenshot. Supported apps are
+Bankily, Masrivi, Sedad (sometimes written Sadad), and Click. Extract only text that
+is visibly printed. Never infer or invent a value. `reference` is the transaction
+reference/ID/code, not the phone. `paid_at` must be ISO 8601 when date and time are
+visible; otherwise null. Amount is numeric MRU without currency. Phone includes the
+country code if printed.
+
+`recipient` is the visibly printed beneficiary, merchant, account holder, or
+destination name. Preserve the visible text. Never infer it from the application,
+provider, amount, phone, ACPEC, or transaction context. Return null when it is not
+visibly printed or is uncertain.
+
+`status_text` is the visibly printed transaction status. Preserve the visible
+wording and language. Do not translate, normalize, or infer success. A reference,
+amount, date, confirmation layout, or receipt appearance alone does not prove that
+the payment succeeded. Return null when no payment status is visibly printed.
+
+Every confidence value must be numeric from 0 to 1 and reflect only whether that
+particular field is visibly and unambiguously readable. Never copy confidence from
+another field. Return JSON only:
+{"provider":null,"reference":null,"amount":null,"currency":"MRU","paid_at":null,
+ "phone":null,"recipient":null,"status_text":null,
+ "confidence":{"provider":0,"reference":0,"amount":0,"paid_at":0,"phone":0,
+ "recipient":0,"status":0}}"""
 
 def _clean_phone(value: Any) -> str | None:
     digits = re.sub(r"\D", "", str(value or ""))
@@ -88,18 +112,15 @@ def extract_with_gemini(image: Any) -> dict[str, Any]:
     ok, encoded = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 94])
     if not ok:
         raise RuntimeError("could not encode image")
-    prompt = """Read this Mauritanian payment receipt/screenshot. Supported apps are
-Bankily, Masrivi, Sedad (sometimes written Sadad), and Click. Extract only text that
-is visibly printed. Never infer or invent a value. `reference` is the transaction
-reference/ID/code, not the phone. `paid_at` must be ISO 8601 when date and time are
-visible; otherwise null. Amount is numeric MRU without currency. Phone includes the
-country code if printed. Return JSON only:
-{"provider":null,"reference":null,"amount":null,"currency":"MRU","paid_at":null,
- "phone":null,"status_text":null,"confidence":{"provider":0,"reference":0,
- "amount":0,"paid_at":0,"phone":0}}. Confidence values are numbers from 0 to 1."""
     response = genai.Client(api_key=api_key).models.generate_content(
         model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
-        contents=[types.Part.from_bytes(data=encoded.tobytes(), mime_type="image/jpeg"), prompt],
+        contents=[
+            types.Part.from_bytes(
+                data=encoded.tobytes(),
+                mime_type="image/jpeg",
+            ),
+            PAYMENT_OCR_PROMPT,
+        ],
         config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0),
     )
     try:
