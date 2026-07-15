@@ -222,5 +222,11 @@ class PaymentProofV1Tests(unittest.TestCase):
         self.assertEqual(payload, {"status": "ok", "gemini_configured": False})
     def test_v1_route_only_accepts_post(self): self.assertEqual(self.client.get("/api/v1/payment-proofs/validate").status_code, 405)
 
+    def test_payment_test_page_is_available(self):
+        response = self.client.get("/static/payment_test.html")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"/api/v1/payment-proofs/validate", response.data)
+        response.close()
+
 if __name__ == "__main__":
     unittest.main()

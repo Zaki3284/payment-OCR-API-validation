@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Test de validation de paiement</title>
+  <style>
+    :root{font-family:system-ui,sans-serif;--green:#078c55;--pale:#effaf5}*{box-sizing:border-box}body{margin:0;background:var(--pale);color:#17352a}main{width:min(920px,94%);margin:2rem auto}.card{background:#fff;border-radius:16px;padding:1.4rem;box-shadow:0 8px 28px #064b2b1a}h1{color:var(--green);margin-top:0}form,.details{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem}label{display:grid;gap:.4rem;font-weight:650}.wide{grid-column:1/-1}input,select,button{width:100%;padding:.75rem;border:1px solid #b9d5c8;border-radius:8px;font:inherit}button{border:0;background:var(--green);color:#fff;font-weight:750;cursor:pointer}button:disabled{opacity:.55}#result{margin-top:1.3rem}#headline{padding:1rem;border-radius:9px;background:#f2f4f3;font-size:1.15rem;font-weight:750}.details{margin:1rem 0}.details div{padding:.7rem;background:var(--pale);border-radius:8px;overflow-wrap:anywhere}pre{max-height:420px;overflow:auto;padding:1rem;border-radius:8px;background:#10251d;color:#e8fff5;white-space:pre-wrap}@media(max-width:650px){form,.details{grid-template-columns:1fr}.wide{grid-column:auto}}
+  </style>
+</head>
+<body><main><section class="card">
+  <h1>Validation d’une preuve de paiement</h1>
+  <form id="payment-form">
+    <label class="wide">URL de l’API<input id="api-url" value="/api/v1/payment-proofs/validate" required></label>
+    <label class="wide">Capture de paiement<input id="image" type="file" accept="image/*" required></label>
+    <label>Fournisseur<select id="provider"><option value="bankily">Bankily</option><option value="masrivi">Masrivi</option><option value="sedad">Sedad</option><option value="click">Click</option></select></label>
+    <label>Montant attendu<input id="amount" type="number" min="0.01" step="0.01" required></label>
+    <label>Téléphone émetteur (facultatif)<input id="sender-phone" inputmode="tel"></label>
+    <label>Bénéficiaire (facultatif)<input id="recipient"></label>
+    <label>Âge maximal (heures)<input id="max-age" type="number" min="0.5" max="72" step="0.5" value="6" required></label>
+    <button class="wide" id="submit" type="submit">Analyser la capture</button>
+  </form>
+  <section id="result" hidden aria-live="polite"><div id="headline"></div><div class="details" id="details"></div><h2>Réponse JSON complète</h2><pre id="json"></pre></section>
+</section></main>
+<script>
+const $=selector=>document.querySelector(selector),labels={accepted:"✅ Capture valide",rejected:"❌ Capture invalide",manual_review:"🟠 Vérification manuelle nécessaire"};
+function readImage(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error("Lecture de l’image impossible"));reader.readAsDataURL(file)})}
+function withoutImage(value){if(Array.isArray(value))return value.map(withoutImage);if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value).filter(([key])=>key!=="image_base64").map(([key,item])=>[key,withoutImage(item)]));return value}
+function show(payload,status){const safe=withoutImage(payload),data=safe.ocr||{},validation=safe.validation||{};$("#headline").textContent=labels[safe.decision]||`Erreur HTTP ${status}`;const rows=[["Fournisseur détecté",data.provider],["Montant détecté",data.amount],["Téléphone détecté",data.phone],["Bénéficiaire détecté",data.recipient],["Statut détecté",data.status_text],["Problèmes",validation.issues],["Temps de traitement",Number.isInteger(safe.processing_time_ms)?`${safe.processing_time_ms} ms`:null]];$("#details").replaceChildren(...rows.map(([name,value])=>{const item=document.createElement("div");item.textContent=`${name} : ${value==null?"—":typeof value==="object"?JSON.stringify(value):value}`;return item}));$("#json").textContent=JSON.stringify(safe,null,2);$("#result").hidden=false}
+$("#payment-form").addEventListener("submit",async event=>{event.preventDefault();const button=$("#submit");button.disabled=true;try{const body={image_base64:await readImage($("#image").files[0]),expected_provider:$("#provider").value,expected_amount:$("#amount").value,expected_currency:"MRU",max_age_hours:Number($("#max-age").value)},phone=$("#sender-phone").value.trim(),recipient=$("#recipient").value.trim();if(phone)body.expected_sender_phone=phone;if(recipient)body.expected_recipient=recipient;const response=await fetch($("#api-url").value,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});show(await response.json(),response.status)}catch(error){show({success:false,error:{message:error.message}},0)}finally{button.disabled=false}});
+</script></body></html>
