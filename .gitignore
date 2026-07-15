@@ -1,0 +1,29 @@
+# Python bytecode
+**pycache**/
+*.py[cod]
+*$py.class
+
+# Python environments
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+
+# Test and coverage files
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Private datasets and test captures
+dataset/
+datasets/
+tests/samples/private/
