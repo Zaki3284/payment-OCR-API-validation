@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import base64
 import re
-from typing import Any
-
 import cv2
 import numpy as np
 
@@ -39,10 +37,3 @@ def blur_metrics(img: np.ndarray) -> dict:
     score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
     return {"score": round(score, 1)}
 
-
-def fields_for_api(fields: dict) -> dict[str, Any]:
-    from kyc_demo import CIN_FIELD_ORDER
-    return {
-        k: (fields.get(k) if fields.get(k) not in ("", None) else None)
-        for k in CIN_FIELD_ORDER
-    }
